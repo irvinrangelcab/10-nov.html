@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReservaEscolar | Control de Espacios CECyTEC</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #eff6ff; color: #1e3a8a; margin: 0; padding: 15px; }
+        .card { max-width: 760px; margin: auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
+        h2 { margin-top: 0; text-align: center; color: #1d4ed8; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        label { display: block; font-size: 11px; font-weight: bold; margin-bottom: 3px; color: #334155; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #bfdbfe; border-radius: 5px; box-sizing: border-box; font-size: 13px; }
+        button { padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: #fff; width: 100%; background: #1d4ed8; }
+        button:hover { background: #1e40af; }
+        .alerta-choque { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; font-weight: bold; display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        th, td { border: 1px solid #dbeafe; padding: 8px; text-align: left; }
+        th { background: #1e3a8a; color: white; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>🏫 ReservaEscolar: Apartado de Laboratorios y Equipos</h2>
+
+    <div id="msgChoque" class="alerta-choque">⚠️ Conflicto de horario: Ese espacio ya está reservado en esa fecha y bloque.</div>
+
+    <div class="grid">
+        <div>
+            <label>Espacio / Recurso:</label>
+            <select id="espacio">
+                <option value="Laboratorio Cómputo CC1">Laboratorio Cómputo CC1</option>
+                <option value="Laboratorio Cómputo CC2">Laboratorio Cómputo CC2</option>
+                <option value="Aula Audiovisual">Aula Audiovisual</option>
+                <option value="Kit Proyector Portátil">Kit Proyector Portátil</option>
+            </select>
+        </div>
+        <div>
+            <label>Fecha de Uso:</label>
+            <input type="date" id="fecha">
+        </div>
+        <div>
+            <label>Bloque Horario:</label>
+            <select id="horario">
+                <option value="07:00 - 08:40">07:00 - 08:40 hrs</option>
+                <option value="08:40 - 10:20">08:40 - 10:20 hrs</option>
+                <option value="10:40 - 12:20">10:40 - 12:20 hrs</option>
+                <option value="12:20 - 14:00">12:20 - 14:00 hrs</option>
+            </select>
+        </div>
+        <div>
+            <label>Solicitante (Docente/Grupo):</label>
+            <input type="text" id="solicitante" placeholder="Ej. Grupo 502 - Prog.">
+        </div>
+    </div>
+
+    <button onclick="reservarEspacio()">Confirmar Reservación</button>
+
+    <table>
+        <thead>
+            <tr><th>Espacio / Recurso</th><th>Fecha</th><th>Bloque Horario</th><th>Solicitante</th><th>Acción</th></tr>
+        </thead>
+        <tbody id="tablaReservas"></tbody>
+    </table>
+</div>
+
+<script>
+    window.onload = function() {
+        document.getElementById("fecha").value = new Date().toISOString().split("T")[0];
+        renderReservas();
+    };
+
+    function getReservas() { return JSON.parse(localStorage.getItem("reserva_escolar_502")) || []; }
+    function setReservas(r) { localStorage.setItem("reserva_escolar_502", JSON.stringify(r)); }
+
+    function reservarEspacio() {
+        const espacio = document.getElementById("espacio").value;
+        const fecha = document.getElementById("fecha").value;
+        const horario = document.getElementById("horario").value;
+        const solicitante = document.getElementById("solicitante").value.trim();
+        const alerta = document.getElementById("msgChoque");
+
+        alerta.style.display = "none";
+
+        if (!fecha || !solicitante) {
+            alert("Selecciona la fecha e indica el nombre del solicitante.");
+            return;
+        }
+
+        const lista = getReservas();
+        // Validación anti-empalme
+        const existeChoque = lista.some(r => r.espacio === espacio && r.fecha === fecha && r.horario === horario);
+
+        if (existeChoque) {
+            alerta.style.display = "block";
+            return;
+        }
+
+        lista.push({ id: Date.now(), espacio, fecha, horario, solicitante });
+        lista.sort((a, b) => (a.fecha + a.horario).localeCompare(b.fecha + b.horario));
+        setReservas(lista);
+
+        document.getElementById("solicitante").value = "";
+        renderReservas();
+    }
+
+    function cancelarReserva(id) {
+        if (confirm("¿Liberar este espacio escolar?")) {
+            setReservas(getReservas().filter(r => r.id !== id));
+            renderReservas();
+        }
+    }
+
+    function renderReservas() {
+        const lista = getReservas();
+        const tbody = document.getElementById("tablaReservas");
+        tbody.innerHTML = lista.length ? "" : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No hay reservaciones activas.</td></tr>";
+
+        lista.forEach(r => {
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${r.espacio}</strong></td>
+                    <td>${r.fecha}</td>
+                    <td>${r.horario}</td>
+                    <td>${r.solicitante}</td>
+                    <td><button onclick="cancelarReserva(${r.id})" style="background:#dc2626; padding:5px 8px; font-size:11px; width:auto;">Cancelar</button></td>
+                </tr>`;
+        });
+    }
+</script>
+</body>
+</html>
