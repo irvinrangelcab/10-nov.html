@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoGestión502 | Control Personal y Estudiantil</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 15px; }
+        .container { max-width: 720px; margin: auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
+        h2 { color: #0369a1; margin-top: 0; text-align: center; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+        .kpi { background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px; border-radius: 8px; text-align: center; }
+        .kpi strong { display: block; font-size: 19px; margin-top: 4px; }
+        .kpi.ing strong { color: #15803d; }
+        .kpi.gas strong { color: #b91c1c; }
+        .kpi.sal strong { color: #0369a1; }
+        .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        @media (max-width: 580px) { .form-grid, .kpi-grid { grid-template-columns: 1fr; } }
+        label { display: block; font-size: 11px; font-weight: bold; margin-bottom: 3px; color: #475569; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; font-size: 13px; }
+        button { padding: 9px 14px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; color: #fff; font-size: 13px; }
+        .btn-add { background: #0284c7; width: 100%; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        th { background: #0f172a; color: white; }
+        .tag-ing { background: #dcfce7; color: #166534; padding: 2px 7px; border-radius: 10px; font-weight: bold; font-size: 11px; }
+        .tag-gas { background: #fee2e2; color: #991b1b; padding: 2px 7px; border-radius: 10px; font-weight: bold; font-size: 11px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>💼 AutoGestión502: Control de Presupuesto y Movimientos</h2>
+
+    <div class="kpi-grid">
+        <div class="kpi ing"><small>Total Ingresos</small><strong id="totIngresos">$0.00</strong></div>
+        <div class="kpi gas"><small>Total Gastos</small><strong id="totGastos">$0.00</strong></div>
+        <div class="kpi sal"><small>Saldo Disponible</small><strong id="totSaldo">$0.00</strong></div>
+    </div>
+
+    <div class="form-grid">
+        <div><label>Concepto / Descripción:</label><input type="text" id="concepto" placeholder="Ej. Beca, Transporte, Material..."></div>
+        <div><label>Monto ($):</label><input type="number" id="monto" min="1" step="0.5" placeholder="0.00"></div>
+        <div><label>Tipo de Movimiento:</label>
+            <select id="tipo">
+                <option value="Ingreso">Ingreso (+)</option>
+                <option value="Gasto">Gasto (-)</option>
+            </select>
+        </div>
+    </div>
+    <button class="btn-add" onclick="registrarMovimiento()">+ Registrar Movimiento</button>
+
+    <table>
+        <thead>
+            <tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Monto</th><th>Acción</th></tr>
+        </thead>
+        <tbody id="tablaMovs"></tbody>
+    </table>
+</div>
+
+<script>
+    function getMovs() { return JSON.parse(localStorage.getItem("autogestion_502")) || []; }
+    function setMovs(d) { localStorage.setItem("autogestion_502", JSON.stringify(d)); }
+
+    function registrarMovimiento() {
+        const concepto = document.getElementById("concepto").value.trim();
+        const monto = parseFloat(document.getElementById("monto").value);
+        const tipo = document.getElementById("tipo").value;
+
+        if (!concepto || isNaN(monto) || monto <= 0) {
+            alert("⚠️ Ingresa un concepto válido y un monto mayor a cero.");
+            return;
+        }
+
+        const lista = getMovs();
+        const ingresos = lista.filter(m => m.tipo === "Ingreso").reduce((acc, m) => acc + m.monto, 0);
+        const gastos = lista.filter(m => m.tipo === "Gasto").reduce((acc, m) => acc + m.monto, 0);
+        const saldoActual = ingresos - gastos;
+
+        if (tipo === "Gasto" && monto > saldoActual) {
+            alert("❌ Saldo insuficiente para cubrir este gasto.");
+            return;
+        }
+
+        const hoy = new Date().toLocaleDateString("es-MX");
+        lista.unshift({ id: Date.now(), fecha: hoy, concepto, tipo, monto });
+        setMovs(lista);
+
+        document.getElementById("concepto").value = "";
+        document.getElementById("monto").value = "";
+        renderizar();
+    }
+
+    function eliminarMov(id) {
+        if (confirm("¿Eliminar este registro financiero?")) {
+            setMovs(getMovs().filter(m => m.id !== id));
+            renderizar();
+        }
+    }
+
+    function renderizar() {
+        const lista = getMovs();
+        const tbody = document.getElementById("tablaMovs");
+        tbody.innerHTML = "";
+
+        let sumIng = 0, sumGas = 0;
+
+        lista.forEach(m => {
+            if (m.tipo === "Ingreso") sumIng += m.monto;
+            else sumGas += m.monto;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${m.fecha}</td>
+                    <td>${m.concepto}</td>
+                    <td><span class="${m.tipo === 'Ingreso' ? 'tag-ing' : 'tag-gas'}">${m.tipo}</span></td>
+                    <td><strong>$${m.monto.toFixed(2)}</strong></td>
+                    <td><button onclick="eliminarMov(${m.id})" style="background:#dc2626; padding:4px 8px; font-size:11px;">X</button></td>
+                </tr>`;
+        });
+
+        document.getElementById("totIngresos").innerText = "$" + sumIng.toFixed(2);
+        document.getElementById("totGastos").innerText = "$" + sumGas.toFixed(2);
+        document.getElementById("totSaldo").innerText = "$" + (sumIng - sumGas).toFixed(2);
+    }
+    renderizar();
+</script>
+</body>
+</html>
